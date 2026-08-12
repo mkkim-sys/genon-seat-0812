@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>신규입사자 좌석 배치도</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+    :root {
+        --primary-color: #3b82f6;
+        --primary-hover: #2563eb;
+        --highlight-color: #f59e0b;
+        --bg-color: #ffffff;
+        --text-main: #1e293b;
+        --text-muted: #64748b;
+        --border-color: #e2e8f0;
+        --success-color: #10b981;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+        background-color: #f8fafc; min-height: 100vh; font-family: 'Noto Sans KR', sans-serif;
+        padding: clamp(12px, 3vw, 32px);
+    }
+
+    /* 고정 픽셀 캔버스 없이, 처음부터 화면 폭에 맞춰 흘러가는 레이아웃 */
+    .slide-container {
+        width: 100%; max-width: 1100px; margin: 0 auto;
+        background-color: var(--bg-color); border-radius: 12px;
+        box-shadow: 0 20px 50px rgba(0,0,0,0.1);
+        overflow: hidden;
+    }
+
+    .view { padding: clamp(20px, 4vw, 50px) clamp(16px, 5vw, 70px); display: flex; flex-direction: column; }
+    .view.hidden { display: none !important; }
+
+    header {
+        margin-bottom: 24px; border-bottom: 2px solid var(--border-color); padding-bottom: 16px;
+        display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px;
+    }
+    .title-group h1 { font-size: clamp(20px, 4vw, 32px); color: var(--text-main); font-weight: 700; }
+    .title-group p { font-size: clamp(12px, 2vw, 15px); color: var(--text-muted); margin-top: 4px; }
+
+    .controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .btn {
+        padding: 9px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer;
+        display: flex; align-items: center; gap: 6px; border: none; transition: all 0.2s ease;
+        font-family: 'Noto Sans KR', sans-serif; white-space: nowrap;
+    }
+    .btn-download { background-color: var(--success-color); color: white; }
+    .btn-download:hover { background-color: #059669; }
+    .btn-edit { background-color: #f1f5f9; color: var(--text-main); border: 1px solid var(--border-color); }
+    .btn-edit:hover { background-color: #e2e8f0; }
+    .btn-edit.active { background-color: var(--primary-color); color: white; border-color: var(--primary-color); }
+    .btn-back { background-color: var(--text-main); color: white; }
+
+    .edit-badge {
+        display: none; text-align: center;
+        background: #fef3c7; color: #92400e; border: 1px solid #fde68a;
+        font-size: 12px; font-weight: 600; padding: 4px 14px; border-radius: 20px;
+        margin-bottom: 14px; width: fit-content;
+    }
+    .edit-badge.visible { display: block; }
+
+    .chart-area { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: clamp(16px, 3vw, 28px); }
+    .table-rect {
+        width: min(92%, 560px); height: clamp(70px, 12vw, 150px);
+        background: #f1f5f9; border: 3px solid var(--border-color); border-radius: 15px;
+        box-shadow: inset 0 4px 10px rgba(0,0,0,0.03);
+    }
+    .seat-row { display: flex; flex-wrap: wrap; justify-content: center; gap: clamp(14px, 3vw, 40px); width: 100%; }
+
+    .seat-circle {
+        width: clamp(64px, 13vw, 96px); height: clamp(64px, 13vw, 96px);
+        background: var(--primary-color); border-radius: 50%;
+        display: flex; justify-content: center; align-items: center; color: white;
+        font-size: clamp(10px, 2vw, 14px); font-weight: 600; cursor: pointer; transition: all 0.3s ease;
+        box-shadow: 0 8px 15px -3px rgba(59, 130, 246, 0.3); border: 4px solid white;
+        overflow: hidden; user-select: none; flex-shrink: 0;
+    }
+    .seat-circle:hover { transform: scale(1.06); box-shadow: 0 12px 20px -3px rgba(59, 130, 246, 0.4); }
+    .seat-circle.empty { background: var(--primary-color); box-shadow: 0 8px 15px -3px rgba(59, 130, 246, 0.3); cursor: pointer; }
+    .seat-circle.highlight { background: var(--highlight-color); box-shadow: 0 8px 15px -3px rgba(245, 158, 11, 0.3); }
+
+    .seat-number {
+        width: 100%; text-align: center;
+        white-space: pre-wrap; word-break: keep-all;
+        line-height: 1.25; padding: 4px;
+        pointer-events: none;
+    }
+    body.edit-mode .seat-number { pointer-events: auto; cursor: text; }
+    body.edit-mode .seat-circle:hover { transform: none; }
+
+    /* 모달 */
+    .modal-overlay {
+        display: none; position: fixed; inset: 0;
+        background: rgba(0,0,0,0.45); z-index: 200;
+        justify-content: center; align-items: center; padding: 16px;
+    }
+    .modal-overlay.visible { display: flex; }
+    .modal {
+        background: white; border-radius: 16px; padding: clamp(20px, 4vw, 36px);
+        width: 380px; max-width: 100%; box-shadow: 0 25px 50px rgba(0,0,0,0.2);
+        display: flex; flex-direction: column; gap: 18px; max-height: 90vh; overflow-y: auto;
+    }
+    .modal h3 { font-size: 18px; font-weight: 700; color: var(--text-main); }
+    .modal label { font-size: 13px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; display: block; }
+    .modal input, .modal textarea {
+        width: 100%; border: 1px solid var(--border-color); border-radius: 8px;
+        padding: 10px 12px; font-size: 15px; font-family: 'Noto Sans KR', sans-serif;
+        color: var(--text-main); outline: none; transition: border 0.2s;
+    }
+    .modal input:focus, .modal textarea:focus { border-color: var(--primary-color); }
+    .modal textarea { resize: vertical; min-height: 80px; }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+    .btn-cancel { background: #f1f5f9; color: var(--text-main); border: 1px solid var(--border-color); }
+    .btn-save { background: var(--primary-color); color: white; }
+    .btn-save:hover { background: var(--primary-hover); }
+
+    /* 상세 페이지 */
+    .detail-content { display: grid; grid-template-columns: 1fr; gap: 28px; padding-top: 12px; }
+    @media (min-width: 700px) {
+        .detail-content { grid-template-columns: 1fr 2fr; gap: 50px; align-items: start; }
+    }
+    .detail-visual {
+        background: #f8fafc; border-radius: 20px; min-height: 220px;
+        display: flex; justify-content: center; align-items: center; border: 1px solid var(--border-color);
+        padding: 20px;
+    }
+    .large-seat {
+        width: clamp(130px, 30vw, 190px); height: clamp(130px, 30vw, 190px);
+        background: var(--primary-color); border-radius: 50%;
+        display: flex; justify-content: center; align-items: center; color: white;
+        font-size: clamp(15px, 2.5vw, 20px); font-weight: 700; padding: 16px; text-align: center;
+        box-shadow: 0 20px 30px rgba(59, 130, 246, 0.2);
+        white-space: pre-wrap; word-break: keep-all; line-height: 1.3;
+    }
+    .large-seat.highlight { background: var(--highlight-color); box-shadow: 0 20px 30px rgba(245, 158, 11, 0.2); }
+    .large-seat.highlight-blue { background: #2563eb; box-shadow: 0 20px 30px rgba(37, 99, 235, 0.35); border: 4px solid #93c5fd; }
+
+    .info-container { display: flex; flex-direction: column; gap: 24px; }
+    .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .info-box { background: #f1f5f9; padding: 18px; border-radius: 12px; }
+    .info-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 6px; font-weight: 700; outline: none; }
+    .info-value { font-size: 16px; font-weight: 600; color: var(--text-main); outline: none; word-break: break-word; }
+    .editable-area {
+        font-size: 14px; color: var(--text-main); min-height: 160px; outline: none;
+        line-height: 1.7; border: 1px dashed var(--border-color); border-radius: 12px;
+        padding: 16px; background: #ffffff; white-space: pre-wrap; word-break: break-word;
+    }
+    #detail-view .info-label,
+    #detail-view .info-value,
+    #detail-view .editable-area { cursor: text; }
+</style>
+</head>
+<body>
+
+    <!-- 모달 -->
+    <div class="modal-overlay" id="modal-overlay">
+        <div class="modal">
+            <h3>좌석 정보 편집</h3>
+            <div>
+                <label>이름 / 표시</label>
+                <input type="text" id="modal-display" placeholder="예) 홍길동 프로">
+            </div>
+            <div>
+                <label>소속</label>
+                <input type="text" id="modal-role" placeholder="예) Agent개발그룹">
+            </div>
+            <div>
+                <label>상세 내용</label>
+                <textarea id="modal-desc" rows="4" placeholder="경력, 온보딩 현황 등"></textarea>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-cancel" onclick="closeModal()">취소</button>
+                <button class="btn btn-save" onclick="saveModal()">저장</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="slide-container">
+        <!-- VIEW 1: MAIN SEATING CHART -->
+        <div id="main-view" class="view">
+            <div class="edit-badge" id="edit-badge">✏️ 편집 모드</div>
+            <header>
+                <div class="title-group">
+                    <h1 id="main-title">신규입사자 좌석 배치도</h1>
+                    <p id="main-subtitle"></p>
+                </div>
+                <div class="controls">
+                    <button class="btn btn-edit" id="edit-btn" onclick="toggleEditMode()">
+                        <i class="fa-solid fa-pen"></i> 편집
+                    </button>
+                    <button class="btn btn-download" onclick="downloadSlide()">
+                        <i class="fa-solid fa-file-arrow-down"></i> 다운로드
+                    </button>
+                </div>
+            </header>
+            <div class="chart-area">
+                <div class="seat-row" id="top-row"></div>
+                <div class="table-rect"></div>
+                <div class="seat-row" id="bottom-row"></div>
+            </div>
+        </div>
+
+        <!-- VIEW 2: DETAIL PAGE -->
+        <div id="detail-view" class="view hidden">
+            <header style="border-bottom: none; margin-bottom: 0;">
+                <div></div>
+                <button class="btn btn-back" onclick="goBack()">
+                    <i class="fa-solid fa-arrow-left"></i> 배치도로 돌아가기
+                </button>
+            </header>
+            <div class="detail-content">
+                <div class="detail-visual">
+                    <div class="large-seat" id="detail-seat-id">대표님</div>
+                </div>
+                <div class="info-container">
+                    <div class="info-grid">
+                        <div class="info-box">
+                            <div class="info-label">이름</div>
+                            <div class="info-value" id="detail-name" contenteditable="true">대표님</div>
+                        </div>
+                        <div class="info-box">
+                            <div class="info-label">소속</div>
+                            <div class="info-value" id="detail-role" contenteditable="true"></div>
+                        </div>
+                    </div>
+                    <div id="detail-desc" class="editable-area" contenteditable="true"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script id="data-script">
+        let seatData = {
+    "config": {
+        "title": "신규입사자 좌석 배치도",
+        "subtitle": ""
+    },
+    "seats": {
+        "1": { "display": "", "name": "", "role": "", "desc": "" },
+        "2": {
+            "display": "김은아 프로",
+            "name": "김은아 프로",
+            "role": "사업개발파트",
+            "desc": "이와이컨설팅\n2026.03 - 재직중 (3개월) 인턴 AI, 데이터 기반 리서치/컨설팅 인턴\n\nLG 경영연구원\n2025.09 - 2025.12 (4개월) 인턴 AI, 데이터 기반 리서치/컨설팅 AI 전문 RA\n\n한국능률협회컨설팅\n2025.02 - 2025.09 (8개월) 계약직 AI, 데이터 기반 리서치/컨설팅 컨설턴트\n\n네이버클라우드\n2023.12 - 2024.02 (3개월) 인턴 HyperCLOVA X 리서치 및 기획 인턴\n\n하얼빈공과대학 2024.07 졸업 Computer science and technology"
+        },
+        "3": {
+            "display": "박상현 프로",
+            "name": "박상현 프로",
+            "role": "사업개발파트",
+            "desc": "NICE신용정보 · 대리 · B2B 세일즈 / 기획 / 운영 2023.02 – 2025.12\n\n숭실대학교 경제학 · 졸업 2022.02"
+        },
+        "4": {
+            "display": "유승우 프로  Core 2파트",
+            "name": "유승우 프로  Core 2파트",
+            "role": "(Core2)파트",
+            "desc": "웨슬리퀘스트 2020.09 ~ 2024.07\n\n경북대학교 조경학과 2018.08 졸업"
+        },
+        "5": { "display": "", "name": "", "role": "", "desc": "" },
+        "6": { "display": "", "name": "", "role": "", "desc": "" },
+        "7": { "display": "", "name": "", "role": "", "desc": "" },
+        "8": { "display": "대표님", "name": "대표님", "role": "", "desc": "" },
+        "9": { "display": "", "name": "", "role": "", "desc": "" },
+        "10": { "display": "", "name": "", "role": "", "desc": "" }
+    }
+};
+
+        let currentSeatId = "1";
+        let isEditMode = false;
+        let modalTargetId = null;
+
+        function initChart() {
+            const topRow = document.getElementById('top-row');
+            const bottomRow = document.getElementById('bottom-row');
+            topRow.innerHTML = '';
+            bottomRow.innerHTML = '';
+
+            document.getElementById('main-title').innerText = seatData.config.title;
+            document.getElementById('main-subtitle').innerText = seatData.config.subtitle;
+
+            for (let i = 1; i <= 10; i++) {
+                const seatInfo = seatData.seats[i.toString()];
+                const isEmpty = !seatInfo.display.trim();
+                // 뷰어 모드에서는 글자가 없는 빈 좌석을 표시하지 않음 (편집 모드에서는 자리 추가를 위해 계속 표시)
+                if (isEmpty && !isEditMode) continue;
+                const container = document.createElement('div');
+                container.innerHTML = `
+                    <div class="seat-circle ${isEmpty ? 'empty' : ''}" id="seat-${i}" onclick="handleSeatClick('${i}')">
+                        <span class="seat-number" id="seat-display-${i}">${isEmpty ? '' : seatInfo.display}</span>
+                    </div>
+                `;
+                if (i <= 5) topRow.appendChild(container);
+                else bottomRow.appendChild(container);
+            }
+        }
+
+        function toggleEditMode() {
+            isEditMode = !isEditMode;
+            document.body.classList.toggle('edit-mode', isEditMode);
+            document.getElementById('edit-btn').classList.toggle('active', isEditMode);
+            document.getElementById('edit-badge').classList.toggle('visible', isEditMode);
+            initChart(); // 편집모드 on/off에 따라 빈 좌석 표시 여부 갱신
+        }
+
+        function handleSeatClick(id) {
+            const seatInfo = seatData.seats[id];
+            const isEmpty = !seatInfo.display.trim();
+            if (isEditMode || isEmpty) {
+                modalTargetId = id;
+                document.getElementById('modal-display').value = seatInfo.display || '';
+                document.getElementById('modal-role').value = seatInfo.role;
+                document.getElementById('modal-desc').value = seatInfo.desc;
+                document.getElementById('modal-overlay').classList.add('visible');
+            } else {
+                goToDetail(id);
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('modal-overlay').classList.remove('visible');
+            modalTargetId = null;
+        }
+
+        function saveModal() {
+            if (!modalTargetId) return;
+            const display = document.getElementById('modal-display').value.trim();
+            const role = document.getElementById('modal-role').value.trim();
+            const desc = document.getElementById('modal-desc').value.trim();
+            seatData.seats[modalTargetId].display = display;
+            seatData.seats[modalTargetId].name = display;
+            seatData.seats[modalTargetId].role = role;
+            seatData.seats[modalTargetId].desc = desc;
+            closeModal();
+            initChart(); // 새로 추가/수정된 내용과 빈 좌석 숨김 규칙을 반영해 다시 렌더링
+        }
+
+        function goToDetail(id) {
+            currentSeatId = id;
+            const data = seatData.seats[id];
+            const detailCircle = document.getElementById('detail-seat-id');
+            detailCircle.innerText = data.display;
+            detailCircle.className = 'large-seat';
+
+            document.getElementById('detail-name').innerText = data.name;
+            document.getElementById('detail-role').innerText = data.role;
+            document.getElementById('detail-desc').innerText = data.desc;
+
+            document.getElementById('main-view').classList.add('hidden');
+            document.getElementById('detail-view').classList.remove('hidden');
+        }
+
+        function saveCurrentDetail() {
+            if (document.getElementById('detail-view').classList.contains('hidden')) return;
+            seatData.seats[currentSeatId].name = document.getElementById('detail-name').innerText;
+            seatData.seats[currentSeatId].role = document.getElementById('detail-role').innerText;
+            seatData.seats[currentSeatId].desc = document.getElementById('detail-desc').innerText;
+        }
+
+        function goBack() {
+            saveCurrentDetail();
+            document.getElementById('detail-view').classList.add('hidden');
+            document.getElementById('main-view').classList.remove('hidden');
+            initChart();
+        }
+
+        function downloadSlide() {
+            saveCurrentDetail();
+            seatData.config.title = document.getElementById('main-title').innerText;
+            seatData.config.subtitle = document.getElementById('main-subtitle').innerText;
+
+            let htmlContent = document.documentElement.outerHTML;
+            const dataRegex = /let seatData = \{[\s\S]*?\};/;
+            const newDataString = `let seatData = ${JSON.stringify(seatData, null, 4)};`;
+            htmlContent = htmlContent.replace(dataRegex, newDataString);
+
+            const blob = new Blob([htmlContent], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = '신규입사자_좌석배치도_최종.html';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+        window.onload = function () {
+            initChart();
+        };
+    </script>
+</body>
+</html>
